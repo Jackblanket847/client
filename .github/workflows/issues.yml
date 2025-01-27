@@ -6,7 +6,8 @@ permissions:
   issues: write
 jobs:
   close_issue:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
+             macos
 
     steps:
     - name: Check issue body and close if necessary
