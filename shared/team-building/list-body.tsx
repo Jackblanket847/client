@@ -172,7 +172,7 @@ const sortAndSplitRecommendations = (
               shortcut: true,
             }
           }
-          sections[sectionIdx]?.data.push(rec)
+          sections[sectionIdx].data.push(rec)
         } else {
           if (!sections[numSectionIdx]) {
             sections[numSectionIdx] = {
@@ -181,7 +181,7 @@ const sortAndSplitRecommendations = (
               shortcut: true,
             }
           }
-          sections[numSectionIdx]?.data.push(rec)
+          sections[numSectionIdx].data.push(rec)
         }
       }
     }
@@ -248,11 +248,6 @@ export const ListBody = (
     [userResults, _teamSoFar, username, following, preExistingTeamMembers]
   )
 
-  // TODO this crashes out renimated 3 https://github.com/software-mansion/react-native-reanimated/issues/2285
-  // in the tab bar, so we just disconnect the shared value for now, likely can just leave this as-is
-  // const onScroll: any = useAnimatedScrollHandler({onScroll: e => (offset.value = e.contentOffset.y)})
-  const onScroll = undefined
-
   const showResults = !!searchString
   const showRecs = !searchString && !!_recommendations && selectedService === 'keybase'
 
@@ -267,29 +262,43 @@ export const ListBody = (
   const showRecPending = !searchString && !recommendations && selectedService === 'keybase'
 
   const lastEnterInputCounterRef = React.useRef(enterInputCounter)
-  if (lastEnterInputCounterRef.current !== enterInputCounter) {
-    lastEnterInputCounterRef.current = enterInputCounter
-    const userResultsToShow = showRecs ? flattenRecommendations(recommendations ?? []) : searchResults
-    const selectedResult =
-      !!userResultsToShow && userResultsToShow[highlightedIndex % userResultsToShow.length]
-    if (selectedResult) {
-      // We don't handle cases where they hit enter on someone that is already a
-      // team member
-      if (selectedResult.isPreExistingTeamMember) {
-        return
+  React.useEffect(() => {
+    if (lastEnterInputCounterRef.current !== enterInputCounter) {
+      lastEnterInputCounterRef.current = enterInputCounter
+      const userResultsToShow = showRecs ? flattenRecommendations(recommendations ?? []) : searchResults
+      const selectedResult =
+        !!userResultsToShow && userResultsToShow[highlightedIndex % userResultsToShow.length]
+      if (selectedResult) {
+        // We don't handle cases where they hit enter on someone that is already a
+        // team member
+        if (selectedResult.isPreExistingTeamMember) {
+          return
+        }
+        if (teamSoFar.filter(u => u.userId === selectedResult.userId).length) {
+          onRemove(selectedResult.userId)
+          onChangeText('')
+        } else {
+          onAdd(selectedResult.userId)
+        }
+      } else if (!searchString && !!teamSoFar.length) {
+        // They hit enter with an empty search string and a teamSoFar
+        // We'll Finish the team building
+        onFinishTeamBuilding()
       }
-      if (teamSoFar.filter(u => u.userId === selectedResult.userId).length) {
-        onRemove(selectedResult.userId)
-        onChangeText('')
-      } else {
-        onAdd(selectedResult.userId)
-      }
-    } else if (!searchString && !!teamSoFar.length) {
-      // They hit enter with an empty search string and a teamSoFar
-      // We'll Finish the team building
-      onFinishTeamBuilding()
     }
-  }
+  }, [
+    enterInputCounter,
+    showRecs,
+    recommendations,
+    searchResults,
+    highlightedIndex,
+    teamSoFar,
+    onRemove,
+    onChangeText,
+    onAdd,
+    searchString,
+    onFinishTeamBuilding,
+  ])
 
   if (showRecPending || showLoading) {
     return (
@@ -314,7 +323,6 @@ export const ListBody = (
       <RecsAndRecos
         highlightedIndex={highlightedIndex}
         recommendations={recommendations}
-        onScroll={onScroll}
         recommendedHideYourself={recommendedHideYourself}
         namespace={namespace}
         selectedService={selectedService}
@@ -337,7 +345,6 @@ export const ListBody = (
         <Kb.List
           reAnimated={true}
           items={searchResults}
-          onScroll={onScroll}
           selectedIndex={highlightedIndex || 0}
           style={styles.list}
           contentContainerStyle={styles.listContentContainer}

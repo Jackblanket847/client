@@ -179,7 +179,7 @@ interface State extends Store {
       onEngineConnectedDesktop?: () => void
       onEngineIncomingDesktop?: (action: EngineGen.Actions) => void
       onEngineIncomingNative?: (action: EngineGen.Actions) => void
-      persistRoute?: (path?: ReadonlyArray<any>) => void
+      persistRoute?: (path?: ReadonlyArray<unknown>) => void
       setNavigatorExistsNative?: () => void
       showMainNative?: () => void
       showShareActionSheet?: (filePath: string, message: string, mimeType: string) => void
@@ -198,7 +198,7 @@ interface State extends Store {
     loadIsOnline: () => void
     loadOnStart: (phase: State['loadOnStartPhase']) => void
     login: (username: string, password: string) => void
-    loginError: (error?: RPCError) => void
+    setLoginError: (error?: RPCError) => void
     logoutAndTryToLogInAs: (username: string) => void
     onEngineConnected: () => void
     onEngineDisonnected: () => void
@@ -219,12 +219,10 @@ interface State extends Store {
     setHTTPSrvInfo: (address: string, token: string) => void
     setIncomingShareUseOriginal: (use: boolean) => void
     setJustDeletedSelf: (s: string) => void
-    setLoggedIn: (l: boolean, causedByStartup: boolean) => void
+    setLoggedIn: (l: boolean, causedByStartup: boolean, fromMenubar?: boolean) => void
     setMobileAppState: (nextAppState: 'active' | 'background' | 'inactive') => void
-    setNavigatorExists: () => void
     setNotifySound: (n: boolean) => void
     setStartupDetails: (st: Omit<Store['startup'], 'loaded'>) => void
-    setStartupDetailsLoaded: () => void
     setOpenAtLogin: (open: boolean) => void
     setOutOfDate: (outOfDate: T.Config.OutOfDate) => void
     setUserSwitching: (sw: boolean) => void
@@ -238,7 +236,7 @@ interface State extends Store {
 }
 
 export const openAtLoginKey = 'openAtLogin'
-export const _useConfigState = Z.createZustand<State>((set, get) => {
+export const useConfigState_ = Z.createZustand<State>((set, get) => {
   const nativeFrameKey = 'useNativeFrame'
   const notifySoundKey = 'notifySound'
   const forceSmallNavKey = 'ui.forceSmallNav'
@@ -633,9 +631,11 @@ export const _useConfigState = Z.createZustand<State>((set, get) => {
 
         const updateServerConfig = async () => {
           if (get().loggedIn) {
-            await T.RPCGen.configUpdateLastLoggedInAndServerConfigRpcPromise({
-              serverConfigPath: C.serverConfigFileName,
-            })
+            try {
+              await T.RPCGen.configUpdateLastLoggedInAndServerConfigRpcPromise({
+                serverConfigPath: C.serverConfigFileName,
+              })
+            } catch {}
           }
         }
 
@@ -699,7 +699,7 @@ export const _useConfigState = Z.createZustand<State>((set, get) => {
                       retryLabel = 'Incorrect password.'
                     }
                     const error = new RPCError(retryLabel, T.RPCGen.StatusCode.scinputerror)
-                    get().dispatch.loginError(error)
+                    get().dispatch.setLoginError(error)
                   } else {
                     response.result({passphrase, storeSecret: false})
                   }
@@ -736,20 +736,12 @@ export const _useConfigState = Z.createZustand<State>((set, get) => {
           } else if (error.desc !== cancelDesc) {
             // If we're canceling then ignore the error
             error.desc = niceError(error)
-            get().dispatch.loginError(error)
+            get().dispatch.setLoginError(error)
           }
         }
       }
-      get().dispatch.loginError()
+      get().dispatch.setLoginError()
       C.ignorePromise(f())
-    },
-    loginError: error => {
-      set(s => {
-        s.loginError = error
-      })
-      // On login error, turn off the user switching flag, so that the login screen is not
-      // hidden and the user can see and respond to the error.
-      get().dispatch.setUserSwitching(false)
     },
     logoutAndTryToLogInAs: username => {
       const f = async () => {
@@ -1017,16 +1009,7 @@ export const _useConfigState = Z.createZustand<State>((set, get) => {
       }
       updateTeams()
 
-      const updateChat = () => {
-        if (!b) return
-        b.conversations?.forEach(c => {
-          const id = T.Chat.conversationIDToKey(c.convID)
-          C.getConvoState(id).dispatch.badgesUpdated(c.badgeCount)
-          C.getConvoState(id).dispatch.unreadUpdated(c.unreadMessages)
-        })
-        C.useChatState.getState().dispatch.badgesUpdated(b.bigTeamBadgeCount, b.smallTeamBadgeCount)
-      }
-      updateChat()
+      C.useChatState.getState().dispatch.badgesUpdated(b)
     },
     setDefaultUsername: u => {
       set(s => {
@@ -1069,7 +1052,6 @@ export const _useConfigState = Z.createZustand<State>((set, get) => {
       }
     },
     setHTTPSrvInfo: (address, token) => {
-      logger.info(`config reducer: http server info: addr: ${address} token: ${token}`)
       set(s => {
         s.httpSrv.address = address
         s.httpSrv.token = token
@@ -1085,12 +1067,14 @@ export const _useConfigState = Z.createZustand<State>((set, get) => {
         s.justDeletedSelf = self
       })
     },
-    setLoggedIn: (loggedIn, causedByStartup) => {
+    setLoggedIn: (loggedIn, causedByStartup, fromMenubar = false) => {
       const changed = get().loggedIn !== loggedIn
       set(s => {
         s.loggedIn = loggedIn
         s.loggedInCausedbyStartup = causedByStartup
       })
+
+      if (fromMenubar) return
 
       if (!changed) return
 
@@ -1123,6 +1107,14 @@ export const _useConfigState = Z.createZustand<State>((set, get) => {
         C.ignorePromise(C.useDaemonState.getState().dispatch.refreshAccounts())
       }
     },
+    setLoginError: error => {
+      set(s => {
+        s.loginError = error
+      })
+      // On login error, turn off the user switching flag, so that the login screen is not
+      // hidden and the user can see and respond to the error.
+      get().dispatch.setUserSwitching(false)
+    },
     setMobileAppState: nextAppState => {
       if (get().mobileAppState === nextAppState) return
       set(s => {
@@ -1131,9 +1123,6 @@ export const _useConfigState = Z.createZustand<State>((set, get) => {
       if (nextAppState === 'background' && C.useChatState.getState().inboxSearch) {
         C.useChatState.getState().dispatch.toggleInboxSearch(false)
       }
-    },
-    setNavigatorExists: () => {
-      get().dispatch.dynamic.setNavigatorExistsNative?.()
     },
     setNotifySound: n => {
       set(s => {
@@ -1171,11 +1160,6 @@ export const _useConfigState = Z.createZustand<State>((set, get) => {
           ...st,
           loaded: true,
         }
-      })
-    },
-    setStartupDetailsLoaded: () => {
-      set(s => {
-        s.startup.loaded = true
       })
     },
     setUseNativeFrame: use => {

@@ -2,7 +2,7 @@ import * as C from '@/constants'
 import * as React from 'react'
 import * as Container from '@/util/container'
 import * as Kb from '@/common-adapters'
-import {Success} from '.'
+import {Success} from './container'
 
 const JoinFromInvite = () => {
   const {inviteID: id, inviteKey: key, inviteDetails: details} = C.useTeamsState(s => s.teamInviteDetails)
@@ -43,8 +43,17 @@ const JoinFromInvite = () => {
 
   const rpcWaiting = C.Waiting.useAnyWaiting(C.Teams.joinTeamWaitingKey)
   const waiting = rpcWaiting && clickedJoin
-  const wasWaiting = Container.usePrevious(waiting)
-  const showSuccess = wasWaiting && !waiting && !error
+  const wasWaitingRef = React.useRef(waiting)
+  React.useEffect(() => {
+    wasWaitingRef.current = waiting
+  }, [waiting])
+
+  const [showSuccess, setShowSuccess] = React.useState(false)
+
+  React.useEffect(() => {
+    setShowSuccess(wasWaitingRef.current && !waiting && !error)
+  }, [waiting, error])
+
   const teamname = (details?.teamName.parts || []).join('.')
 
   const body =

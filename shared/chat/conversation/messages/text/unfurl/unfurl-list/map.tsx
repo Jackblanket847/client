@@ -101,7 +101,7 @@ type AgeProps = {
 
 const UpdateAge = (props: AgeProps) => {
   const {time} = props
-  const [duration, setDuration] = React.useState(Date.now() - time)
+  const [duration, setDuration] = React.useState(() => Date.now() - time)
   React.useEffect(() => {
     const timer = setInterval(() => {
       setDuration(Date.now() - time)
@@ -110,7 +110,7 @@ const UpdateAge = (props: AgeProps) => {
       clearInterval(timer)
     }
   }, [time])
-  let durationText = ''
+  let durationText: string
   if (duration < 60000) {
     durationText = 'updated just now'
   } else if (duration > 14400000) {
@@ -132,7 +132,7 @@ type DurationProps = {
 
 const LiveDuration = (props: DurationProps) => {
   const {liveLocationEndTime} = props
-  const [duration, setDuration] = React.useState(liveLocationEndTime - Date.now())
+  const [duration, setDuration] = React.useState(() => liveLocationEndTime - Date.now())
   React.useEffect(() => {
     const timer = setInterval(() => {
       setDuration(liveLocationEndTime - Date.now())

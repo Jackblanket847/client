@@ -1,6 +1,6 @@
 import * as React from 'react'
 import * as C from '@/constants'
-import {useWindowDimensions} from 'react-native'
+import {useSafeAreaFrame} from 'react-native-safe-area-context'
 
 const getOptions = {
   ...(C.isIOS ? {orientation: 'all', presentation: 'transparentModal'} : {}),
@@ -12,13 +12,17 @@ const getOptions = {
 const Full = React.lazy(async () => import('.'))
 type OwnProps = C.Chat.ChatProviderProps<C.ViewPropsToPageProps<typeof Full>>
 const Screen = (p: OwnProps) => {
-  const {width, height} = useWindowDimensions()
+  const {width, height} = useSafeAreaFrame()
   const isPortrait = height > width
+  const wasPortraitRef = React.useRef(isPortrait)
   // reset zoom etc on change
   const [key, setKey] = React.useState(0)
 
   React.useEffect(() => {
-    setKey(k => k + 1)
+    if (isPortrait !== wasPortraitRef.current) {
+      wasPortraitRef.current = isPortrait
+      setKey(k => k + 1)
+    }
   }, [isPortrait])
 
   const {conversationIDKey, ...rest} = p.route.params

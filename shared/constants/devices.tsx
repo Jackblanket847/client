@@ -2,6 +2,7 @@ import * as React from 'react'
 import * as Z from '@/util/zustand'
 import * as C from '@/constants'
 import * as T from './types'
+import debounce from 'lodash/debounce'
 
 const initialStore: T.Devices.State = {
   deviceMap: new Map(),
@@ -17,28 +18,32 @@ interface State extends T.Devices.State {
   }
 }
 
-export const _useState = Z.createZustand<State>(set => {
+export const useState_ = Z.createZustand<State>(set => {
   const dispatch: State['dispatch'] = {
     clearBadges: () => {
       C.ignorePromise(T.RPCGen.deviceDismissDeviceChangeNotificationsRpcPromise())
     },
-    load: () => {
-      const f = async () => {
-        const results = await T.RPCGen.deviceDeviceHistoryListRpcPromise(undefined, waitingKey)
-        set(s => {
-          C.updateImmerMap(
-            s.deviceMap,
-            new Map(
-              results?.map(r => {
-                const d = rpcDeviceToDevice(r)
-                return [d.deviceID, d]
-              })
+    load: debounce(
+      () => {
+        const f = async () => {
+          const results = await T.RPCGen.deviceDeviceHistoryListRpcPromise(undefined, waitingKey)
+          set(s => {
+            C.updateImmerMap(
+              s.deviceMap,
+              new Map(
+                results?.map(r => {
+                  const d = rpcDeviceToDevice(r)
+                  return [d.deviceID, d]
+                })
+              )
             )
-          )
-        })
-      }
-      C.ignorePromise(f())
-    },
+          })
+        }
+        C.ignorePromise(f())
+      },
+      1000,
+      {leading: true, trailing: false}
+    ),
     resetState: 'default',
     setBadges: b => {
       set(s => {
@@ -84,12 +89,12 @@ const makeDevice = (d?: Partial<T.Devices.Device>): T.Devices.Device =>
 export const waitingKey = 'devices:devicesPage'
 
 export const useActiveDeviceCounts = () => {
-  const ds = _useState(s => s.deviceMap)
+  const ds = useState_(s => s.deviceMap)
   return [...ds.values()].reduce((c, v) => (!v.revokedAt ? c + 1 : c), 0)
 }
 
 export const useRevokedDeviceCounts = () => {
-  const ds = _useState(s => s.deviceMap)
+  const ds = useState_(s => s.deviceMap)
   return [...ds.values()].reduce((c, v) => (v.revokedAt ? c + 1 : c), 0)
 }
 
@@ -100,12 +105,12 @@ export const useRevokedDeviceCounts = () => {
 export const numBackgrounds = 10
 
 export const useDeviceIconNumber = (deviceID: T.Devices.DeviceID) => {
-  const devices = _useState(s => s.deviceMap)
+  const devices = useState_(s => s.deviceMap)
   return (((devices.get(deviceID)?.deviceNumberOfType ?? 0) % numBackgrounds) + 1) as T.Devices.IconNumber
 }
 
 export const useNextDeviceIconNumber = () => {
-  const dm = _useState(s => s.deviceMap)
+  const dm = useState_(s => s.deviceMap)
   const next = React.useMemo(() => {
     // Find the max device number and add one (+ one more since these are 1-indexed)
     const result = {backup: 1, desktop: 1, mobile: 1}

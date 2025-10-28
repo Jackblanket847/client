@@ -1,22 +1,74 @@
 import * as Kb from '@/common-adapters'
 import * as React from 'react'
-import * as Shared from './shim.shared'
 import {SafeAreaProvider, initialWindowMetrics} from 'react-native-safe-area-context'
-import {View} from 'react-native'
-import type {RouteMap, GetOptions, GetOptionsParams} from '@/constants/types/router2'
-import {isTablet} from '@/constants/platform'
+import type {
+  RouteMap,
+  RouteDef,
+  GetOptions,
+  GetOptionsParams,
+  ScreenComponentProps,
+} from '@/constants/types/router2'
+import {isTablet, isIOS} from '@/constants/platform'
+import type {RootParamList as KBRootParamList} from '@/router-v2/route-params'
+import type {NavScreensResult} from './shim'
 
-export const shim = (routes: RouteMap, isModal: boolean, isLoggedOut: boolean) =>
-  Shared._shim(routes, platformShim, isModal, isLoggedOut)
+const makeNavScreen = (
+  name: keyof KBRootParamList,
+  rd: RouteDef,
+  Screen: React.ComponentType<any>,
+  isModal: boolean,
+  isLoggedOut: boolean
+) => {
+  const origGetScreen = rd.getScreen
 
-export const getOptions = Shared._getOptions
+  let wrappedGetComponent: undefined | React.ComponentType<any>
+  const getScreen = origGetScreen
+    ? () => {
+        if (wrappedGetComponent === undefined) {
+          wrappedGetComponent = platformShim(origGetScreen(), isModal, isLoggedOut, rd.getOptions)
+        }
+        return wrappedGetComponent
+      }
+    : undefined
+
+  return (
+    <Screen
+      key={String(name)}
+      name={name}
+      getComponent={getScreen}
+      options={({route, navigation}: GetOptionsParams) => {
+        const no = rd.getOptions
+        const opt = typeof no === 'function' ? no({navigation, route}) : no
+        return {
+          ...opt,
+          ...(isModal ? {animationEnabled: true} : {}),
+        }
+      }}
+    />
+  )
+}
+
+export const makeNavScreens = <T extends {Screen: React.ComponentType<any>}>(
+  rs: RouteMap,
+  Screen: T['Screen'],
+  isModal: boolean,
+  isLoggedOut: boolean
+): NavScreensResult =>
+  (Object.keys(rs) as Array<keyof KBRootParamList>).map(k =>
+    makeNavScreen(k, rs[k]!, Screen, isModal, isLoggedOut)
+  )
+
+const modalOffset = isIOS ? 40 : 0
 
 const platformShim = (
-  Original: React.JSXElementConstructor<GetOptionsParams>,
+  Original: React.JSXElementConstructor<ScreenComponentProps>,
   isModal: boolean,
   isLoggedOut: boolean,
   getOptions?: GetOptions
-) => {
+): React.ComponentType<any> => {
+  if (!isModal && !isLoggedOut) {
+    return Original as React.ComponentType<any>
+  }
   // Wrap everything in a keyboard avoiding view (maybe this is opt in/out?)
   return React.memo(function ShimmedNew(props: GetOptionsParams) {
     const navigationOptions =
@@ -24,32 +76,18 @@ const platformShim = (
         ? getOptions({navigation: props.navigation, route: props.route})
         : getOptions
 
-    let wrap = <Original {...props} />
-
-    if (isModal || isLoggedOut) {
-      wrap = (
-        <Kb.KeyboardAvoidingView2 extraOffset={40} compensateNotBeingOnBottom={isModal && isTablet}>
-          <SafeAreaProvider initialMetrics={initialWindowMetrics} pointerEvents="box-none">
-            <Kb.SafeAreaView
-              style={Kb.Styles.collapseStyles([styles.keyboard, navigationOptions?.safeAreaStyle])}
-            >
-              {wrap}
-            </Kb.SafeAreaView>
-          </SafeAreaProvider>
-        </Kb.KeyboardAvoidingView2>
-      )
-    }
-
-    if (isModal) {
-      wrap = <ModalWrapper>{wrap}</ModalWrapper>
-    }
-    return wrap
+    return (
+      <Kb.KeyboardAvoidingView2 extraOffset={modalOffset} compensateNotBeingOnBottom={isModal && isTablet}>
+        <SafeAreaProvider initialMetrics={initialWindowMetrics} pointerEvents="box-none">
+          <Kb.SafeAreaView
+            style={Kb.Styles.collapseStyles([styles.keyboard, navigationOptions?.safeAreaStyle])}
+          >
+            <Original {...(props as any as ScreenComponentProps)} />
+          </Kb.SafeAreaView>
+        </SafeAreaProvider>
+      </Kb.KeyboardAvoidingView2>
+    )
   })
-}
-
-const ModalWrapper = (p: {children: React.ReactNode}) => {
-  const {children} = p
-  return <View style={styles.modal}>{children}</View>
 }
 
 const styles = Kb.Styles.styleSheetCreate(

@@ -51,28 +51,11 @@ function startHot() {
   const name = path.join(__dirname, '..', 'dist', 'node.dev.bundle.js')
   const params = [name]
 
-  // Find extensions
-
-  const devToolRoots = !process.env['KEYBASE_PERF'] && process.env['KEYBASE_DEV_TOOL_ROOTS']
-  const devToolExtensions = devToolRoots
-    ? {
-        KEYBASE_DEV_TOOL_EXTENSIONS: devToolRoots
-          .split(',')
-          .map(root => path.join(root, fs.readdirSync(root)[0] ?? ''))
-          .join(','),
-      }
-    : null
-
-  const env = {
-    ...process.env,
-    ...devToolExtensions,
-  }
-
   const hitServer = () => {
     const req = http.get('http://localhost:4000/dist/node.dev.bundle.js', () => {
       // require in case we're trying to yarn install electron!
       const electron = require('electron') as unknown as string
-      spawn(electron, [...params, ...(isLinux ? ['--disable-gpu'] : [])], {env, stdio: 'inherit'})
+      spawn(electron, [...params, ...(isLinux ? ['--disable-gpu'] : [])], {stdio: 'inherit'})
     })
     req.on('error', e => {
       console.log('Error: ', e)

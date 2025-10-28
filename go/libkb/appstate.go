@@ -2,6 +2,7 @@ package libkb
 
 import (
 	"fmt"
+	"runtime"
 	"sync"
 	"time"
 
@@ -23,6 +24,14 @@ type MobileAppState struct {
 }
 
 func NewMobileAppState(g *GlobalContext) *MobileAppState {
+	if runtime.GOOS == "android" {
+		// we need this so cold notifications work on android
+		return &MobileAppState{
+			Contextified: NewContextified(g),
+			state:        keybase1.MobileAppState_BACKGROUNDACTIVE,
+			mtime:        nil,
+		}
+	}
 	return &MobileAppState{
 		Contextified: NewContextified(g),
 		state:        keybase1.MobileAppState_FOREGROUND,

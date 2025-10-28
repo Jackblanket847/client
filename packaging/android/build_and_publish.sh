@@ -70,6 +70,8 @@ echo "Packager running with PID $rn_packager_pid"
 
 # Build and publish the apk
 cd "$android_dir"
+rm -rf app/.cxx
+rm -rf app/build
 ./gradlew clean
 # yarn jetify
 ./gradlew publishReleaseBundle

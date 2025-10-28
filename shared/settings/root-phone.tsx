@@ -2,7 +2,6 @@ import * as C from '@/constants'
 import * as React from 'react'
 import * as Kb from '@/common-adapters'
 import * as T from '@/constants/types'
-import type {Section as _Section} from '@/common-adapters/section-list'
 import {keybaseFM} from '@/constants/whats-new'
 import {isAndroid} from '@/constants/platform'
 import SettingsItem from './sub-nav/settings-item'
@@ -11,7 +10,7 @@ import noop from 'lodash/noop'
 
 const PerfRow = () => {
   const [toSubmit, setToSubmit] = React.useState('')
-  const ref = React.useRef<Kb.PlainInput>(null)
+  const ref = React.useRef<Kb.PlainInputRef>(null)
 
   return (
     <Kb.Box2
@@ -48,18 +47,16 @@ const PerfRow = () => {
   )
 }
 
-type Section = _Section<
-  {
-    badgeNumber?: number
-    text: string
-    icon?: Kb.IconType
-    onClick: () => void
-    iconComponent?: (a: {}) => React.ReactElement
-    subText?: string
-    textColor?: string
-  },
-  {title: string}
->
+type Item = {
+  badgeNumber?: number
+  text: string
+  icon?: Kb.IconType
+  onClick: () => void
+  iconComponent?: (a: object) => React.ReactElement
+  subText?: string
+  textColor?: string
+}
+type Section = Omit<Kb.SectionType<Item>, 'renderItem'>
 
 function SettingsNav() {
   const badgeNumbers = C.useNotifState(s => s.navBadges)
@@ -82,20 +79,20 @@ function SettingsNav() {
           text: 'Crypto',
         },
         {
-          badgeNumber: badgeNumbers.get(C.Tabs.gitTab),
-          icon: 'iconfont-nav-2-git',
-          onClick: () => {
-            navigateAppend(C.Settings.settingsGitTab)
-          },
-          text: 'Git',
-        },
-        {
           badgeNumber: badgeNumbers.get(C.Tabs.devicesTab),
           icon: 'iconfont-nav-2-devices',
           onClick: () => {
             navigateAppend(C.Settings.settingsDevicesTab)
           },
           text: 'Devices',
+        },
+        {
+          badgeNumber: badgeNumbers.get(C.Tabs.gitTab),
+          icon: 'iconfont-nav-2-git',
+          onClick: () => {
+            navigateAppend(C.Settings.settingsGitTab)
+          },
+          text: 'Git',
         },
         {
           icon: 'iconfont-nav-2-wallets',
@@ -122,7 +119,19 @@ function SettingsNav() {
           onClick: () => {
             navigateAppend(C.Settings.settingsAccountTab)
           },
-          text: 'Your account',
+          text: 'Account',
+        },
+        {
+          onClick: () => {
+            navigateAppend(C.Settings.settingsAdvancedTab)
+          },
+          text: 'Advanced',
+        },
+        {
+          onClick: () => {
+            navigateAppend(C.Settings.settingsArchiveTab)
+          },
+          text: 'Backup',
         },
         {
           onClick: () => {
@@ -132,9 +141,15 @@ function SettingsNav() {
         },
         {
           onClick: () => {
-            navigateAppend(C.Settings.settingsContactsTab)
+            navigateAppend(C.Settings.settingsDisplayTab)
           },
-          text: contactsLabel,
+          text: 'Display',
+        },
+        {
+          onClick: () => {
+            navigateAppend(C.Settings.settingsFeedbackTab)
+          },
+          text: 'Feedback',
         },
         {
           onClick: () => {
@@ -143,17 +158,17 @@ function SettingsNav() {
           text: 'Files',
         },
         {
+          onClick: () => {
+            navigateAppend(C.Settings.settingsContactsTab)
+          },
+          text: contactsLabel,
+        },
+        {
           badgeNumber: badgeNotifications ? 1 : 0,
           onClick: () => {
             navigateAppend(C.Settings.settingsNotificationsTab)
           },
           text: 'Notifications',
-        },
-        {
-          onClick: () => {
-            navigateAppend(C.Settings.settingsDisplayTab)
-          },
-          text: 'Display',
         },
         ...(isAndroid
           ? [
@@ -178,24 +193,6 @@ function SettingsNav() {
         },
         {
           onClick: () => {
-            navigateAppend(C.Settings.settingsFeedbackTab)
-          },
-          text: 'Feedback',
-        },
-        {
-          onClick: () => {
-            navigateAppend(C.Settings.settingsAdvancedTab)
-          },
-          text: 'Advanced',
-        },
-        {
-          onClick: () => {
-            navigateAppend(C.Settings.settingsArchiveTab)
-          },
-          text: 'Archive',
-        },
-        {
-          onClick: () => {
             navigateAppend(C.Settings.settingsLogOutTab)
           },
           text: 'Sign out',
@@ -215,7 +212,9 @@ function SettingsNav() {
         if (item.text === 'perf') {
           return <PerfRow />
         }
-        return item.text ? <SettingsItem {...item} /> : null
+        return item.text ? (
+          <SettingsItem {...item} type={item.text} onClick={() => item.onClick()} selected={false} />
+        ) : null
       }}
       renderSectionHeader={({section: {title}}) =>
         title ? (

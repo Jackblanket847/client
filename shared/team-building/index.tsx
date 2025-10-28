@@ -161,7 +161,7 @@ const TeamBuilding = (p: OwnProps) => {
   )
 
   const title = C.useTeamsState(s =>
-    namespace === 'teams' ? `Add to ${C.Teams.getTeamMeta(s, teamID ?? '').teamname}` : p.title ?? ''
+    namespace === 'teams' ? `Add to ${C.Teams.getTeamMeta(s, teamID ?? '').teamname}` : (p.title ?? '')
   )
 
   const waitingForCreate = C.Waiting.useAnyWaiting(C.Chat.waitingKeyCreating)

@@ -2,12 +2,18 @@ import * as Kb from '@/common-adapters'
 import * as Constants from '@/constants/crypto'
 import * as Common from '@/router-v2/common.desktop'
 import LeftNav from './left-nav.desktop'
-import {useNavigationBuilder, TabRouter, createNavigatorFactory} from '@react-navigation/core'
+import {
+  useNavigationBuilder,
+  TabRouter,
+  createNavigatorFactory,
+  type NavigationContainerRef,
+} from '@react-navigation/core'
+import type {TypedNavigator, NavigatorTypeBagBase, StaticConfig} from '@react-navigation/native'
 import decryptIO from './decrypt.inout.page'
 import encryptIO from './encrypt.inout.page'
 import signIO from './sign.inout.page'
 import verifyIO from './verify.inout.page'
-import {getOptions, shim} from '@/router-v2/shim'
+import {makeNavScreens} from '@/router-v2/shim'
 
 /* Desktop SubNav */
 const cryptoSubRoutes = {
@@ -32,7 +38,10 @@ function LeftTabNavigator({
   })
 
   const selectedTab = state.routes[state.index]?.name ?? ''
-  const onSelectTab = Common.useSubnavTabAction(navigation as any, state)
+  const onSelectTab = Common.useSubnavTabAction(
+    navigation as unknown as NavigationContainerRef<object>,
+    state
+  )
 
   return (
     <NavigationContent>
@@ -59,26 +68,21 @@ const styles = Kb.Styles.styleSheetCreate(() => ({
   nav: {width: 180},
 }))
 
-const createLeftTabNavigator = createNavigatorFactory(LeftTabNavigator)
+type NavType = NavigatorTypeBagBase & {
+  ParamList: {
+    [key in keyof typeof cryptoSubRoutes]: undefined
+  }
+}
+
+export const createLeftTabNavigator = createNavigatorFactory(LeftTabNavigator) as () => TypedNavigator<
+  NavType,
+  StaticConfig<NavigatorTypeBagBase>
+>
 const TabNavigator = createLeftTabNavigator()
-
-const shimmed = shim(cryptoSubRoutes, false, false)
-const shimKeys = Object.keys(shimmed) as Array<keyof typeof shimmed>
-
+const cryptoScreens = makeNavScreens(cryptoSubRoutes, TabNavigator.Screen, false, false)
 const CryptoSubNavigator = () => (
   <TabNavigator.Navigator initialRouteName={Constants.encryptTab} backBehavior="none">
-    {shimKeys.map(name => (
-      <TabNavigator.Screen
-        key={name}
-        name={name}
-        getComponent={cryptoSubRoutes[name].getScreen}
-        options={({route, navigation}) => {
-          const no = getOptions(cryptoSubRoutes[name])
-          const opt = typeof no === 'function' ? no({navigation, route}) : no
-          return {...opt}
-        }}
-      />
-    ))}
+    {cryptoScreens}
   </TabNavigator.Navigator>
 )
 

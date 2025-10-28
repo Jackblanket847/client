@@ -13,6 +13,7 @@ type Props = {
   onSubmit: (fullName: string, joinSubteam: boolean) => void
 }
 
+// used in chat too
 const CreateNewTeam = (props: Props) => {
   const [name, setName] = React.useState('')
   const [joinSubteam, setJoinSubteam] = React.useState(true)
@@ -39,7 +40,7 @@ const CreateNewTeam = (props: Props) => {
         <>
           {!isSubteam ? (
             <Kb.Banner color="blue">
-              For security reasons, team names are unique and can't be changed, so choose carefully.
+              {"For security reasons, team names are unique and can't be changed, so choose carefully."}
             </Kb.Banner>
           ) : null}
           {isSubteam ? (

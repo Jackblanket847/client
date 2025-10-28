@@ -7,7 +7,7 @@ import type {SizeType} from '@/common-adapters/icon'
 
 export type ClickableProps = {
   onClick: () => void
-  mref: React.RefObject<Kb.MeasureRef>
+  mref: React.RefObject<Kb.MeasureRef | null>
 }
 
 type ClickableComponent = {
@@ -31,25 +31,24 @@ export type Props = {
 }
 
 type ICProps = {
-  measureRef: React.RefObject<Kb.MeasureRef>
+  measureRef: React.RefObject<Kb.MeasureRef | null>
   onClick: () => void
   sizeType: SizeType
   actionIconWhite?: boolean | undefined
 }
 const IconClickable = React.memo(function IconClickable(props: ICProps) {
+  const {measureRef, actionIconWhite, sizeType, onClick} = props
   return (
     <Kb.WithTooltip tooltip="More actions">
       <Kb.Icon
         fixOverdraw={false}
         type="iconfont-ellipsis"
-        color={
-          props.actionIconWhite ? Kb.Styles.globalColors.whiteOrBlueDark : Kb.Styles.globalColors.black_50
-        }
-        hoverColor={props.actionIconWhite ? undefined : Kb.Styles.globalColors.black}
+        color={actionIconWhite ? Kb.Styles.globalColors.whiteOrBlueDark : Kb.Styles.globalColors.black_50}
+        hoverColor={actionIconWhite ? undefined : Kb.Styles.globalColors.black}
         padding="tiny"
-        sizeType={props.sizeType}
-        onClick={props.onClick}
-        ref={props.measureRef}
+        sizeType={sizeType}
+        onClick={onClick}
+        ref={measureRef}
       />
     </Kb.WithTooltip>
   )

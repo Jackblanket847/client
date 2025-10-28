@@ -2,7 +2,6 @@ import * as C from '@/constants'
 import * as Kb from '@/common-adapters'
 import * as T from '@/constants/types'
 import * as React from 'react'
-import type {Section} from '@/common-adapters/section-list'
 import MinWriterRole from './min-writer-role'
 import Notifications from './notifications'
 import RetentionPicker from '@/teams/team/settings-tab/retention/container'
@@ -38,31 +37,33 @@ const SettingsPanel = (props: SettingsPanelProps) => {
   )
 
   const navigateAppend = C.Chat.useChatNavigateAppend()
-  const onShowClearConversationDialog = () => {
+  const onShowClearConversationDialog = React.useCallback(() => {
     navigateAppend(conversationIDKey => ({props: {conversationIDKey}, selected: 'chatDeleteHistoryWarning'}))
-  }
+  }, [navigateAppend])
 
   const hideConversation = C.useChatContext(s => s.dispatch.hideConversation)
-  const onHideConv = () => hideConversation(true)
-  const onUnhideConv = () => hideConversation(false)
-  const onShowBlockConversationDialog = membersForBlock.length
-    ? () => {
-        navigateAppend(conversationIDKey => ({
-          props: {
-            blockUserByDefault: true,
-            conversationIDKey,
-            others: membersForBlock,
-            team: teamname,
-          },
-          selected: 'chatBlockingModal',
-        }))
-      }
-    : onHideConv
+  const onHideConv = React.useCallback(() => hideConversation(true), [hideConversation])
+  const onUnhideConv = React.useCallback(() => hideConversation(false), [hideConversation])
+  const onShowBlockConversationDialog = React.useCallback(() => {
+    if (membersForBlock.length) {
+      navigateAppend(conversationIDKey => ({
+        props: {
+          blockUserByDefault: true,
+          conversationIDKey,
+          others: membersForBlock,
+          team: teamname,
+        },
+        selected: 'chatBlockingModal',
+      }))
+    } else {
+      onHideConv()
+    }
+  }, [membersForBlock, onHideConv, teamname, navigateAppend])
 
   const leaveConversation = C.useChatContext(s => s.dispatch.leaveConversation)
-  const onLeaveConversation = () => {
+  const onLeaveConversation = React.useCallback(() => {
     leaveConversation()
-  }
+  }, [leaveConversation])
 
   const onArchive = () => {
     C.featureFlags.archive &&
@@ -109,13 +110,37 @@ const SettingsPanel = (props: SettingsPanelProps) => {
             <Kb.Button
               type="Default"
               mode="Secondary"
-              label="Archive channel"
+              label="Backup channel"
               onClick={onArchive}
               icon="iconfont-folder-downloads"
               iconColor={Kb.Styles.globalColors.black}
             />
           </Kb.Box2>
         ) : null}
+        {entityType !== 'channel' &&
+          (ignored ? (
+            <Kb.Box2 direction="vertical" fullWidth={true} gap="tiny">
+              <Kb.Button
+                type="Default"
+                mode="Secondary"
+                label="Unhide this conversation"
+                onClick={onUnhideConv}
+                icon="iconfont-unhide"
+                iconColor={Kb.Styles.globalColors.red}
+              />
+            </Kb.Box2>
+          ) : (
+            <Kb.Box2 direction="vertical" fullWidth={true} gap="tiny">
+              <Kb.Button
+                type="Default"
+                mode="Secondary"
+                label="Hide this conversation"
+                onClick={onHideConv}
+                icon="iconfont-unhide"
+                iconColor={Kb.Styles.globalColors.red}
+              />
+            </Kb.Box2>
+          ))}
         <RetentionPicker
           conversationIDKey={
             ['adhoc', 'channel'].includes(entityType) ? conversationIDKey : C.Chat.noConversationIDKey
@@ -147,26 +172,6 @@ const SettingsPanel = (props: SettingsPanelProps) => {
                 iconColor={Kb.Styles.globalColors.red}
               />
             )}
-            {entityType !== 'channel' &&
-              (ignored ? (
-                <Kb.Button
-                  type="Danger"
-                  mode="Secondary"
-                  label="Unhide this conversation"
-                  onClick={onUnhideConv}
-                  icon="iconfont-unhide"
-                  iconColor={Kb.Styles.globalColors.red}
-                />
-              ) : (
-                <Kb.Button
-                  type="Danger"
-                  mode="Secondary"
-                  label="Hide this conversation"
-                  onClick={onHideConv}
-                  icon="iconfont-unhide"
-                  iconColor={Kb.Styles.globalColors.red}
-                />
-              ))}
           </Kb.Box2>
         ) : null}
       </Kb.Box2>
@@ -196,25 +201,25 @@ const styles = Kb.Styles.styleSheetCreate(
     }) as const
 )
 
+type Item = {type: 'settings-panel'} | {type: 'tabs'} | {type: 'header-item'}
+type Section = Kb.SectionType<Item>
+
 type Props = {
   isPreview: boolean
-  renderTabs: () => React.ReactElement | null
-  commonSections: Array<Section<unknown, {type: 'header-section'}>>
+  commonSections: ReadonlyArray<Section>
 }
 
 const SettingsTab = (p: Props) => {
-  const section: Section<unknown, {type: 'settings-panel'}> = {
-    data: [{key: 'tab'}],
-    key: 'settings-panel',
-    renderItem: () => <SettingsPanel isPreview={p.isPreview} key="settings" />,
-    type: 'settings-panel',
+  const section = {
+    data: [{type: 'settings-panel'}],
+    renderItem: () => <SettingsPanel isPreview={p.isPreview} />,
   } as const
-  const sections = [...p.commonSections, section]
+  const sections: Array<Section> = [...p.commonSections, section]
   return (
     <Kb.SectionList
       stickySectionHeadersEnabled={true}
       keyboardShouldPersistTaps="handled"
-      renderSectionHeader={({section}) => (section.type === 'settings-panel' ? p.renderTabs() : null)}
+      renderSectionHeader={({section}) => section.renderSectionHeader?.({section}) ?? null}
       sections={sections}
     />
   )

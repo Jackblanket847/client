@@ -23,12 +23,10 @@ import {
   fsDownloadDir,
   androidAppColorSchemeChanged,
   guiConfig,
+  shareListenersRegistered,
 } from 'react-native-kb'
-import {
-  initPushListener,
-  getStartupDetailsFromInitialPush,
-  getStartupDetailsFromInitialShare,
-} from './push.native'
+import {initPushListener, getStartupDetailsFromInitialPush} from './push.native'
+import type {ImageInfo} from '@/util/expo-image-picker.native'
 
 export const requestPermissionsToWrite = async () => {
   if (isAndroid) {
@@ -134,9 +132,8 @@ export const showShareActionSheet = async (options: {
   }
 }
 
-// TODO rewrite this, v slow
 const loadStartupDetails = async () => {
-  const [routeState, initialUrl, push, share] = await Promise.all([
+  const [routeState, initialUrl, push] = await Promise.all([
     C.neverThrowPromiseFunc(async () => {
       try {
         const config = JSON.parse(guiConfig) as {ui?: {routeState2?: string}} | undefined
@@ -147,7 +144,6 @@ const loadStartupDetails = async () => {
     }),
     C.neverThrowPromiseFunc(async () => Linking.getInitialURL()),
     C.neverThrowPromiseFunc(getStartupDetailsFromInitialPush),
-    C.neverThrowPromiseFunc(getStartupDetailsFromInitialShare),
   ] as const)
 
   // Clear last value to be extra safe bad things don't hose us forever
@@ -162,8 +158,6 @@ const loadStartupDetails = async () => {
   let followUser = ''
   let link = ''
   let tab = ''
-  let sharePaths = new Array<string>()
-  let shareText = ''
 
   // Top priority, push
   if (push) {
@@ -171,13 +165,8 @@ const loadStartupDetails = async () => {
     conversation = push.startupConversation
     followUser = push.startupFollowUser ?? ''
   } else if (initialUrl) {
-    logger.info('initialState: link', link)
     // Second priority, deep link
     link = initialUrl
-  } else if (share?.fileUrls || share?.text) {
-    logger.info('initialState: share')
-    sharePaths = share.fileUrls
-    shareText = share.text
   } else if (routeState) {
     // Last priority, saved from last session
     try {
@@ -207,22 +196,12 @@ const loadStartupDetails = async () => {
     tab = ''
   }
 
-  const {setAndroidShare} = C.useConfigState.getState().dispatch
-
-  if (sharePaths.length) {
-    setAndroidShare({type: T.RPCGen.IncomingShareType.file, urls: sharePaths})
-  } else if (shareText) {
-    setAndroidShare({text: shareText, type: T.RPCGen.IncomingShareType.text})
-  }
-
   C.useConfigState.getState().dispatch.setStartupDetails({
     conversation: conversation ?? C.Chat.noConversationIDKey,
     followUser,
     link,
     tab: tab as Tabs.Tab,
   })
-
-  afterStartupDetails(false)
 }
 
 const setPermissionDeniedCommandStatus = (conversationIDKey: T.Chat.ConversationIDKey, text: string) => {
@@ -291,19 +270,19 @@ const ensureBackgroundTask = () => {
   if (madeBackgroundTask) return
   madeBackgroundTask = true
 
-  ExpoTaskManager.defineTask(locationTaskName, ({data, error}) => {
+  ExpoTaskManager.defineTask(locationTaskName, async ({data, error}) => {
     if (error) {
       // check `error.message` for more details.
-      return
+      return Promise.resolve()
     }
 
     if (!data) {
-      return
+      return Promise.resolve()
     }
     const d = data as {locations?: Array<ExpoLocation.LocationObject>}
     const locations = d.locations
     if (!locations?.length) {
-      return
+      return Promise.resolve()
     }
     const pos = locations.at(-1)
     const coord = {
@@ -313,6 +292,7 @@ const ensureBackgroundTask = () => {
     }
 
     C.useChatState.getState().dispatch.updateLastCoord(coord)
+    return Promise.resolve()
   })
 }
 
@@ -348,9 +328,6 @@ export const watchPositionForMap = async (conversationIDKey: T.Chat.Conversation
   }
 }
 
-// if we are making the daemon wait then run this to cleanup
-let afterStartupDetails = (_done: boolean) => {}
-
 export const initPlatformListener = () => {
   let _lastPersist = ''
   C.useConfigState.setState(s => {
@@ -379,6 +356,7 @@ export const initPlatformListener = () => {
           return
         }
         _lastPersist = s
+
         await T.RPCGen.configGuiSetValueRpcPromise({
           path: 'ui.routeState2',
           value: {isNull: false, s},
@@ -431,20 +409,6 @@ export const initPlatformListener = () => {
   C.useDaemonState.subscribe((s, old) => {
     if (s.handshakeVersion === old.handshakeVersion) return
 
-    // loadStartupDetails finished already
-    if (C.useConfigState.getState().startup.loaded) {
-      afterStartupDetails = (_inc: boolean) => {}
-    } else {
-      // Else we have to wait for the loadStartupDetails to finish
-      const {wait} = C.useDaemonState.getState().dispatch
-      const version = s.handshakeVersion
-      const startupDetailsWaiting = 'platform.native-waitStartupDetails'
-      afterStartupDetails = (inc: boolean) => {
-        wait(startupDetailsWaiting, version, inc)
-      }
-      afterStartupDetails(true)
-    }
-
     if (isAndroid) {
       C.ignorePromise(
         T.RPCChat.localConfigureFileAttachmentDownloadLocalRpcPromise({
@@ -475,10 +439,16 @@ export const initPlatformListener = () => {
       const f = async () => {
         try {
           const result = await launchImageLibraryAsync('photo')
-          if (!result.canceled) {
+          const first = result.assets?.reduce<ImageInfo | undefined>((acc, a) => {
+            if (!acc && (a.type === 'image' || a.type === 'video')) {
+              return a as ImageInfo
+            }
+            return acc
+          }, undefined)
+          if (!result.canceled && first) {
             C.useRouterState
               .getState()
-              .dispatch.navigateAppend({props: {image: result.assets[0]}, selected: 'profileEditAvatar'})
+              .dispatch.navigateAppend({props: {image: first}, selected: 'profileEditAvatar'})
           }
         } catch (error) {
           C.useConfigState.getState().dispatch.filePickerError(new Error(String(error)))
@@ -541,6 +511,9 @@ export const initPlatformListener = () => {
     })
   }
 
+  // we call this when we're logged in.
+  let calledShareListenersRegistered = false
+
   C.useRouterState.subscribe((s, old) => {
     const next = s.navState
     const prev = old.navState
@@ -549,6 +522,11 @@ export const initPlatformListener = () => {
       await C.timeoutPromise(1000)
       const path = C.Router2.getVisiblePath()
       C.useConfigState.getState().dispatch.dynamic.persistRoute?.(path)
+    }
+
+    if (!calledShareListenersRegistered && C.Router2.logState().loggedIn) {
+      calledShareListenersRegistered = true
+      shareListenersRegistered()
     }
     C.ignorePromise(f())
   })

@@ -2,6 +2,9 @@ import * as C from '@/constants'
 import * as Kb from '@/common-adapters'
 import * as React from 'react'
 import Main from './main.native'
+// crashy still
+// import {KeyboardProvider} from 'react-native-keyboard-controller'
+import Animated, {ReducedMotionConfig, ReduceMotion} from 'react-native-reanimated'
 import {AppRegistry, AppState, Appearance, Linking, Keyboard} from 'react-native'
 import {PortalProvider} from '@/common-adapters/portal.native'
 import {SafeAreaProvider, initialWindowMetrics} from 'react-native-safe-area-context'
@@ -12,9 +15,10 @@ import {setKeyboardUp} from '@/styles/keyboard-state'
 import {setServiceDecoration} from '@/common-adapters/markdown/react'
 import ServiceDecoration from '@/common-adapters/markdown/service-decoration'
 import {useUnmountAll} from '@/util/debug-react'
+import {darkModeSupported, guiConfig} from 'react-native-kb'
+import {install} from 'react-native-kb'
 
 enableFreeze(true)
-
 setServiceDecoration(ServiceDecoration)
 
 module.hot?.accept(() => {
@@ -22,9 +26,32 @@ module.hot?.accept(() => {
 })
 
 const useDarkHookup = () => {
+  const initedRef = React.useRef(false)
   const appStateRef = React.useRef('active')
-  const {setSystemDarkMode} = C.useDarkModeState.getState().dispatch
+  const setSystemDarkMode = C.useDarkModeState(s => s.dispatch.setSystemDarkMode)
   const setMobileAppState = C.useConfigState(s => s.dispatch.setMobileAppState)
+  const setSystemSupported = C.useDarkModeState(s => s.dispatch.setSystemSupported)
+  const setDarkModePreference = C.useDarkModeState(s => s.dispatch.setDarkModePreference)
+
+  // once
+  if (!initedRef.current) {
+    initedRef.current = true
+    setSystemDarkMode(Appearance.getColorScheme() === 'dark')
+    setSystemSupported(darkModeSupported)
+    try {
+      const obj = JSON.parse(guiConfig) as {ui?: {darkMode?: string}} | undefined
+      const dm = obj?.ui?.darkMode
+      switch (dm) {
+        case 'system': // fallthrough
+        case 'alwaysDark': // fallthrough
+        case 'alwaysLight':
+          setDarkModePreference(dm, false)
+          break
+        default:
+      }
+    } catch {}
+  }
+
   React.useEffect(() => {
     const appStateChangeSub = AppState.addEventListener('change', nextAppState => {
       appStateRef.current = nextAppState
@@ -96,10 +123,13 @@ if (__DEV__ && !globalThis.DEBUGmadeEngine) {
   globalThis.DEBUGmadeEngine = false
 }
 
+// once per module
 let inited = false
 const useInit = () => {
   if (inited) return
   inited = true
+  Animated.addWhitelistedNativeProps({text: true})
+  install()
   const {batch} = C.useWaitingState.getState().dispatch
   const eng = makeEngine(batch, c => {
     if (c) {
@@ -115,27 +145,35 @@ const useInit = () => {
   C.useConfigState.getState().dispatch.installerRan()
 }
 
+// reanimated has issues updating shared values with this on seemingly w/ zoom toolkit
+const wrapInStrict = false as boolean
+const WRAP = wrapInStrict
+  ? ({children}: {children: React.ReactNode}) => <React.StrictMode>{children}</React.StrictMode>
+  : ({children}: {children: React.ReactNode}) => <>{children}</>
+
 // on android this can be recreated a bunch so our engine/store / etc should live outside
 const Keybase = () => {
   useInit()
-  // reanimated still isn't compatible yet with strict mode
-  // <React.StrictMode>
-  // </React.StrictMode>
 
   const {unmountAll, show} = useUnmountAll()
+
+  // <KeyboardProvider statusBarTranslucent={true} navigationBarTranslucent={true}>
   return show ? (
-    <GestureHandlerRootView style={styles.gesture}>
-      <PortalProvider>
-        <SafeAreaProvider initialMetrics={initialWindowMetrics} pointerEvents="box-none">
-          <StoreHelper>
-            <Kb.Styles.CanFixOverdrawContext.Provider value={true}>
-              <Main />
-              {unmountAll}
-            </Kb.Styles.CanFixOverdrawContext.Provider>
-          </StoreHelper>
-        </SafeAreaProvider>
-      </PortalProvider>
-    </GestureHandlerRootView>
+    <WRAP>
+      <ReducedMotionConfig mode={ReduceMotion.Never} />
+      <GestureHandlerRootView style={styles.gesture}>
+        <PortalProvider>
+          <SafeAreaProvider initialMetrics={initialWindowMetrics} pointerEvents="box-none">
+            <StoreHelper>
+              <Kb.Styles.CanFixOverdrawContext.Provider value={true}>
+                <Main />
+                {unmountAll}
+              </Kb.Styles.CanFixOverdrawContext.Provider>
+            </StoreHelper>
+          </SafeAreaProvider>
+        </PortalProvider>
+      </GestureHandlerRootView>
+    </WRAP>
   ) : (
     unmountAll
   )

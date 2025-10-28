@@ -31,8 +31,7 @@ const useData = () => {
   const [cachedSummary, setSummary] = React.useState(summaryForError(error))
   const [cachedDetails, setDetails] = React.useState(detailsForError(error))
   const [size, setSize] = React.useState<Size>('Closed')
-  const countdownTimerRef = React.useRef<ReturnType<typeof setTimeout>>()
-  const newErrorTimerRef = React.useRef<ReturnType<typeof setTimeout>>()
+  const countdownTimerRef = React.useRef<undefined | ReturnType<typeof setTimeout>>(undefined)
 
   const clearCountdown = React.useCallback(() => {
     countdownTimerRef.current && clearTimeout(countdownTimerRef.current)
@@ -45,15 +44,6 @@ const useData = () => {
       clearCountdown()
     }
   }, [clearCountdown])
-
-  C.useOnUnMountOnce(() => {
-    clearCountdown()
-    newErrorTimerRef.current && clearTimeout(newErrorTimerRef.current)
-  })
-
-  C.useOnMountOnce(() => {
-    resetError(!!error)
-  })
 
   const resetError = React.useCallback(
     (newError: boolean) => {
@@ -70,11 +60,16 @@ const useData = () => {
     [clearCountdown, onDismiss]
   )
 
-  const [lastError, setLastError] = React.useState(error)
+  C.useOnUnMountOnce(() => {
+    clearCountdown()
+  })
 
-  if (lastError !== error) {
-    setLastError(error)
-    newErrorTimerRef.current = setTimeout(
+  C.useOnMountOnce(() => {
+    resetError(!!error)
+  })
+
+  React.useEffect(() => {
+    const id = setTimeout(
       () => {
         setDetails(detailsForError(error))
         if (!C.isMobile) {
@@ -84,7 +79,10 @@ const useData = () => {
       error ? 0 : 7000
     ) // if it's set, do it immediately, if it's cleared set it in a bit
     resetError(!!error)
-  }
+    return () => {
+      clearTimeout(id)
+    }
+  }, [error, resetError])
 
   return {
     cachedDetails,

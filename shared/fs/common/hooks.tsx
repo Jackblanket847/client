@@ -4,8 +4,6 @@ import * as React from 'react'
 import * as T from '@/constants/types'
 import * as Kb from '@/common-adapters'
 import logger from '@/logger'
-import type * as Styles from '@/styles'
-import type {StylesTextCrossPlatform} from '@/common-adapters/text'
 
 const isPathItem = (path: T.FS.Path) => T.FS.getPathLevel(path) > 2 || Constants.hasSpecialFileElement(path)
 
@@ -44,7 +42,7 @@ export const useFsPathMetadata = (path: T.FS.Path) => {
 
 export const useFsChildren = (path: T.FS.Path, initialLoadRecursive?: boolean) => {
   useFsPathSubscriptionEffect(path, T.RPCGen.PathSubscriptionTopic.children)
-  const {folderListLoad} = C.useFSState.getState().dispatch
+  const folderListLoad = C.useFSState(s => s.dispatch.folderListLoad)
   React.useEffect(() => {
     isPathItem(path) && folderListLoad(path, initialLoadRecursive || false)
   }, [folderListLoad, path, initialLoadRecursive])
@@ -198,11 +196,7 @@ export const useFsWatchDownloadForMobile = C.isMobile
     }
   : () => false
 
-export const useFuseClosedSourceConsent = (
-  disabled: boolean,
-  backgroundColor?: Styles.Color,
-  textStyle?: StylesTextCrossPlatform
-) => {
+export const useFuseClosedSourceConsent = (disabled: boolean, invert = false) => {
   const [agreed, setAgreed] = React.useState<boolean>(false)
 
   const component = React.useMemo(() => {
@@ -210,16 +204,21 @@ export const useFuseClosedSourceConsent = (
       <Kb.Checkbox
         disabled={disabled}
         checked={agreed}
-        boxBackgroundColor={backgroundColor}
         onCheck={(v: boolean) => setAgreed(v)}
+        checkboxStyle={invert ? {backgroundColor: Kb.Styles.globalColors.white} : undefined}
+        checkboxColor={invert ? Kb.Styles.globalColors.black : undefined}
         labelComponent={
-          <Kb.Text type="BodySmall" style={textStyle} onClick={() => setAgreed(a => !a)}>
+          <Kb.Text
+            type="BodySmall"
+            style={invert ? {color: Kb.Styles.globalColors.white} : undefined}
+            onClick={() => setAgreed(a => !a)}
+          >
             {`I understand that a closed-source kernel extension (FUSE for macOS) will be installed.`}
           </Kb.Text>
         }
       />
     ) : undefined
-  }, [disabled, agreed, backgroundColor, textStyle])
+  }, [disabled, agreed, invert])
 
   return {
     canContinue: !C.isDarwin || agreed,

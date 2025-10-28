@@ -3,11 +3,12 @@ import * as Kb from '@/common-adapters'
 import * as Styles from '@/styles'
 import UnfurlImage from '../messages/text/unfurl/unfurl-list/image'
 import {getMargins, scaledWidth} from './width'
-import type {Props} from '.'
+import {useHooks} from './hooks'
 
 const gridHeight = 100
 
-const GiphySearch = (props: Props) => {
+const GiphySearch = () => {
+  const props = useHooks()
   const [width, setWidth] = React.useState<number | undefined>(undefined)
   const divRef = React.useRef<HTMLDivElement>(null)
 
@@ -39,7 +40,7 @@ const GiphySearch = (props: Props) => {
       >
         <Kb.Box2 direction="horizontal" style={styles.instructionsContainer} fullWidth={true} gap="xtiny">
           <Kb.Text style={styles.instructions} type="BodySmall">
-            Tip: hit 'Enter' now to send a random GIF.
+            {"Tip: hit 'Enter' now to send a random GIF."}
           </Kb.Text>
           <Kb.Text
             style={styles.instructions}

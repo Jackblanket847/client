@@ -1,24 +1,65 @@
 import * as React from 'react'
 import * as C from '@/constants'
-import * as Shared from './shim.shared'
+import type {RootParamList as KBRootParamList} from '@/router-v2/route-params'
+import type {NativeStackNavigationProp} from '@react-navigation/native-stack'
 import * as Kb from '@/common-adapters'
 import {EscapeHandler} from '@/common-adapters/key-event-handler.desktop'
 import type {
-  RouteMap,
+  RouteDef,
   GetOptions,
   GetOptionsParams,
+  RouteMap,
   GetOptionsRet,
   ModalType,
+  ScreenComponentProps,
 } from '@/constants/types/router2'
+import type {NavScreensResult} from './shim'
 
-export const getOptions = Shared._getOptions
-export const shim = (routes: RouteMap, isModal: boolean, isLoggedOut: boolean) =>
-  Shared._shim(routes, platformShim, isModal, isLoggedOut)
+// to reduce closing over too much memory
+const makeOptions = (val: RouteDef) => {
+  return ({route, navigation}: GetOptionsParams) => {
+    const no = val.getOptions
+    const opt = typeof no === 'function' ? no({navigation, route}) : no
+    return {...opt}
+  }
+}
+
+const makeNavScreen = (
+  name: keyof KBRootParamList,
+  rd: RouteDef,
+  Screen: React.ComponentType<any>,
+  isModal: boolean,
+  isLoggedOut: boolean
+) => {
+  const origGetScreen = rd.getScreen
+
+  let wrappedGetComponent: undefined | React.ComponentType<any>
+  const getScreen = origGetScreen
+    ? () => {
+        if (wrappedGetComponent === undefined) {
+          wrappedGetComponent = platformShim(origGetScreen(), isModal, isLoggedOut, rd.getOptions)
+        }
+        return wrappedGetComponent
+      }
+    : undefined
+
+  return <Screen key={String(name)} name={name} getComponent={getScreen} options={makeOptions(rd)} />
+}
+
+export const makeNavScreens = <T extends {Screen: React.ComponentType<any>}>(
+  rs: RouteMap,
+  Screen: T['Screen'],
+  isModal: boolean,
+  isLoggedOut: boolean
+): NavScreensResult =>
+  (Object.keys(rs) as Array<keyof KBRootParamList>).map(k =>
+    makeNavScreen(k, rs[k]!, Screen, isModal, isLoggedOut)
+  )
 
 const mouseResetValue = -9999
 const mouseDistanceThreshold = 5
 
-const useMouseClick = (navigation: {pop: () => void}, noClose?: boolean) => {
+const useMouseClick = (navigation: NativeStackNavigationProp<KBRootParamList>, noClose?: boolean) => {
   const backgroundRef = React.useRef<HTMLDivElement>(null)
 
   // we keep track of mouse down/up to determine if we should call it a 'click'. We don't want dragging the
@@ -57,7 +98,7 @@ const useMouseClick = (navigation: {pop: () => void}, noClose?: boolean) => {
 }
 type WrapProps = {
   navigationOptions?: GetOptionsRet
-  navigation: {pop: () => void}
+  navigation: NativeStackNavigationProp<KBRootParamList>
   children: React.ReactNode
 }
 
@@ -89,7 +130,7 @@ const ModalWrapper = (p: WrapProps) => {
 
   if (modal2) {
     return (
-      <EscapeHandler onESC={topMostModal ? navigation.pop : undefined}>
+      <EscapeHandler onESC={topMostModal ? () => navigation.pop() : undefined}>
         <Kb.Box2Div
           key="background"
           direction="horizontal"
@@ -133,6 +174,43 @@ const ModalWrapper = (p: WrapProps) => {
       </Kb.Box2>
     )
   }
+}
+
+const wrapInStrict = (_route: string) => {
+  const wrap = true
+  // TODO use this to disable strict if something is broken
+  return wrap
+}
+
+const platformShim = (
+  Original: React.JSXElementConstructor<ScreenComponentProps>,
+  isModal: boolean,
+  _isLoggedOut: boolean,
+  getOptions?: GetOptions
+): React.ComponentType<any> => {
+  return React.memo(function ShimmedNew(props: GetOptionsParams) {
+    const navigationOptions =
+      typeof getOptions === 'function'
+        ? getOptions({navigation: props.navigation, route: props.route})
+        : getOptions
+
+    const original = <Original {...(props as any as ScreenComponentProps)} />
+    let body = original
+
+    if (isModal) {
+      body = (
+        <ModalWrapper navigation={props.navigation} navigationOptions={navigationOptions}>
+          {body}
+        </ModalWrapper>
+      )
+    }
+
+    if (wrapInStrict(props.route.name)) {
+      body = <React.StrictMode>{body}</React.StrictMode>
+    }
+
+    return body
+  })
 }
 
 const styles = Kb.Styles.styleSheetCreate(() => {
@@ -231,29 +309,3 @@ const styles = Kb.Styles.styleSheetCreate(() => {
     transparentSceneUnderHeader: {...Kb.Styles.globalStyles.fillAbsolute},
   } as const
 })
-
-const platformShim = (
-  Original: React.JSXElementConstructor<GetOptionsParams>,
-  isModal: boolean,
-  _isLoggedOut: boolean,
-  getOptions?: GetOptions
-) => {
-  return React.memo(function ShimmedNew(props: GetOptionsParams) {
-    const navigationOptions =
-      typeof getOptions === 'function'
-        ? getOptions({navigation: props.navigation, route: props.route})
-        : getOptions
-    const original = <Original {...props} />
-    let body = original
-
-    if (isModal) {
-      body = (
-        <ModalWrapper navigation={props.navigation} navigationOptions={navigationOptions}>
-          {body}
-        </ModalWrapper>
-      )
-    }
-
-    return body
-  })
-}

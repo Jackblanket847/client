@@ -19,9 +19,15 @@ export const useActions = (p: {conversationIDKey: T.Chat.ConversationIDKey}) => 
 }
 
 export const useJumpToRecent = (scrollToBottom: () => void, numOrdinals: number) => {
-  const hasCenter = C.useChatContext(s => (s.messageCenterOrdinal?.ordinal ?? 0) > 0)
-  const toggleThreadSearch = C.useChatContext(s => s.dispatch.toggleThreadSearch)
-  const jumpToRecent = C.useChatContext(s => s.dispatch.jumpToRecent)
+  const data = C.useChatContext(
+    C.useShallow(s => {
+      const containsLatestMessage = s.isCaughtUp()
+      const {loaded, messageCenterOrdinal} = s
+      const {jumpToRecent, toggleThreadSearch} = s.dispatch
+      return {containsLatestMessage, jumpToRecent, loaded, messageCenterOrdinal, toggleThreadSearch}
+    })
+  )
+  const {containsLatestMessage, jumpToRecent, loaded, toggleThreadSearch, messageCenterOrdinal} = data
 
   const onJump = React.useCallback(() => {
     scrollToBottom()
@@ -29,5 +35,10 @@ export const useJumpToRecent = (scrollToBottom: () => void, numOrdinals: number)
     toggleThreadSearch(true)
   }, [toggleThreadSearch, jumpToRecent, scrollToBottom])
 
-  return hasCenter && numOrdinals > 0 && <JumpToRecent onClick={onJump} />
+  return (
+    loaded &&
+    messageCenterOrdinal &&
+    !containsLatestMessage &&
+    numOrdinals > 0 && <JumpToRecent onClick={onJump} />
+  )
 }

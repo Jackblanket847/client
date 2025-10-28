@@ -135,7 +135,7 @@ interface State extends Store {
   }
 }
 
-export const _useState = Z.createZustand<State>((set, get) => {
+export const useState_ = Z.createZustand<State>((set, get) => {
   const clearErrors = (s: Z.WritableDraft<Store>) => {
     s.errorCode = undefined
     s.errorText = ''
@@ -436,7 +436,9 @@ export const _useState = Z.createZustand<State>((set, get) => {
     },
     backToProfile: () => {
       C.useRouterState.getState().dispatch.clearModals()
-      get().dispatch.showUserProfile(C.useCurrentUserState.getState().username)
+      setTimeout(() => {
+        get().dispatch.showUserProfile(C.useCurrentUserState.getState().username)
+      }, 100)
     },
     checkProof: () => {
       set(s => {
@@ -729,7 +731,10 @@ export const _useState = Z.createZustand<State>((set, get) => {
     uploadAvatar: (filename, crop) => {
       const f = async () => {
         try {
-          await T.RPCGen.userUploadUserAvatarRpcPromise({crop, filename}, uploadAvatarWaitingKey)
+          await T.RPCGen.userUploadUserAvatarRpcPromise(
+            {crop: C.fixCrop(crop), filename},
+            uploadAvatarWaitingKey
+          )
           C.useRouterState.getState().dispatch.navigateUp()
         } catch (error) {
           if (!(error instanceof RPCError)) {

@@ -162,14 +162,21 @@ func InitOnce(homeDir, mobileSharedHome, logFile, runModeStr string,
 func Init(homeDir, mobileSharedHome, logFile, runModeStr string,
 	accessGroupOverride bool, externalDNSNSFetcher ExternalDNSNSFetcher, nvh NativeVideoHelper,
 	mobileOsVersion string, isIPad bool, installReferrerListener NativeInstallReferrerListener, isIOS bool) (err error) {
+
+	// better crash logging
+	os.Setenv("GOTRACEBACK", "crash")
+	debug.SetTraceback("all")
+
+	begin := time.Now()
+	fmt.Printf("Go: Initializing: home: %s mobileSharedHome: %s\n", homeDir, mobileSharedHome)
 	defer func() {
 		err = flattenError(err)
 		if err == nil {
 			setInited()
 		}
+		fmt.Printf("Go: Init complete: %v\n", time.Since(begin))
 	}()
 
-	fmt.Printf("Go: Initializing: home: %s mobileSharedHome: %s\n", homeDir, mobileSharedHome)
 	if isIOS {
 		// buffer of bytes
 		buffer = make([]byte, 300*1024)
@@ -196,13 +203,13 @@ func Init(homeDir, mobileSharedHome, logFile, runModeStr string,
 	libkb.IsIPad = isIPad
 
 	// Reduce OS threads on mobile so we don't have too much contention with JS thread
-	oldProcs := runtime.GOMAXPROCS(0)
-	newProcs := oldProcs - 2
-	if newProcs <= 0 {
-		newProcs = 1
-	}
-	runtime.GOMAXPROCS(newProcs)
-	fmt.Printf("Go: setting GOMAXPROCS to: %d previous: %d\n", newProcs, oldProcs)
+	// oldProcs := runtime.GOMAXPROCS(0)
+	// newProcs := oldProcs - 2
+	// if newProcs <= 0 {
+	// 	newProcs = 1
+	// }
+	// runtime.GOMAXPROCS(newProcs)
+	// fmt.Printf("Go: setting GOMAXPROCS to: %d previous: %d\n", newProcs, oldProcs)
 
 	startTrace(logFile)
 

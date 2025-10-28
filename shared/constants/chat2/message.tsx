@@ -82,17 +82,6 @@ export const getPaymentMessageInfo = (
   )
 }
 
-export const isPendingPaymentMessage = (
-  accountsInfoMap: ConvoConstants.ConvoState['accountsInfoMap'],
-  message?: T.Chat.Message
-) => {
-  if (message?.type !== 'sendPayment') {
-    return false
-  }
-  const paymentInfo = getPaymentMessageInfo(accountsInfoMap, message)
-  return !!(paymentInfo && paymentInfo.status === 'pending')
-}
-
 // Map service message types to our message types.
 export const serviceMessageTypeToMessageTypes = (t: T.RPCChat.MessageType): Array<T.Chat.MessageType> => {
   switch (t) {
@@ -539,10 +528,11 @@ export const uiRequestInfoToChatRequestInfo = (
 export const uiPaymentInfoToChatPaymentInfo = (
   ps?: ReadonlyArray<T.RPCChat.UIPaymentInfo>
 ): MessageTypes.ChatPaymentInfo | undefined => {
-  if (!ps || ps.length !== 1) {
+  if (ps?.length !== 1) {
     return undefined
   }
-  const p = ps[0]!
+  const p = ps[0]
+  if (!p) return undefined
   const serviceStatus = C.Wallets.statusSimplifiedToString[p.status]
   return makeChatPaymentInfo({
     accountID: p.accountID ?? T.Wallets.noAccountID,
@@ -577,9 +567,9 @@ export const reactionMapToReactions = (r: T.RPCChat.UIReactionMap): undefined | 
             arr.push([
               emoji,
               {
-                decorated: r.reactions[emoji]!.decorated,
+                decorated: r.reactions[emoji].decorated,
                 users: new Set(
-                  Object.keys(r.reactions[emoji]?.users ?? {}).map(username =>
+                  Object.keys(r.reactions[emoji].users ?? {}).map(username =>
                     makeReaction({
                       timestamp: r.reactions?.[emoji]!.users?.[username]?.ctime,
                       username,

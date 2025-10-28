@@ -3,7 +3,6 @@ import * as T from './types'
 import * as EngineGen from '../actions/engine-gen-gen'
 import * as ProfileConstants from './profile'
 import * as Router2Constants from './router2'
-import * as Tabs from './tabs'
 import * as Z from '@/util/zustand'
 import invert from 'lodash/invert'
 import logger from '@/logger'
@@ -383,7 +382,7 @@ export const getDisabledReasonsForRolePicker = (
 ): T.Teams.DisabledReasonsForRolePicker => {
   const canManageMembers = getCanPerformByID(state, teamID).manageMembers
   const teamMeta = getTeamMeta(state, teamID)
-  const teamDetails = _useState.getState().teamDetails.get(teamID)
+  const teamDetails = useState_.getState().teamDetails.get(teamID)
   const members: ReadonlyMap<string, T.Teams.MemberInfo> =
     teamDetails?.members || state.teamIDToMembers.get(teamID) || new Map<string, T.Teams.MemberInfo>()
   const teamname = teamMeta.teamname
@@ -612,7 +611,7 @@ export const getTeamMeta = (state: State, teamID: T.Teams.TeamID) =>
         showcasing: state.newTeamWizard.profileShowcase,
         teamname: state.newTeamWizard.name === '' ? 'New team' : state.newTeamWizard.name,
       })
-    : state.teamMeta.get(teamID) ?? emptyTeamMeta
+    : (state.teamMeta.get(teamID) ?? emptyTeamMeta)
 
 export const getTeamMemberLastActivity = (
   state: State,
@@ -762,7 +761,7 @@ export const deriveCanPerform = (roleAndDetails?: T.Teams.TeamRoleAndDetails): T
   }
 
   const ck = _canUserPerformCacheKey(roleAndDetails)
-  if (_canUserPerformCache[ck]) return _canUserPerformCache[ck]!
+  if (_canUserPerformCache[ck]) return _canUserPerformCache[ck]
 
   const {role, implicitAdmin} = roleAndDetails
   const isAdminOrAbove = role === 'admin' || role === 'owner'
@@ -872,7 +871,7 @@ export const consumeTeamTreeMembershipValue = (
 // in the treeloader-powered map (which can go stale) as a backup. If it returns null, it means we
 // don't know the answer (yet). If it returns type='none', that means the user is not in the team.
 export const maybeGetSparseMemberInfo = (state: State, teamID: string, username: string) => {
-  const details = _useState.getState().teamDetails.get(teamID)
+  const details = useState_.getState().teamDetails.get(teamID)
   if (details) {
     return details.members.get(username) ?? {type: 'none'}
   }
@@ -1191,7 +1190,7 @@ export interface State extends Store {
   }
 }
 
-export const _useState = Z.createZustand<State>((set, get) => {
+export const useState_ = Z.createZustand<State>((set, get) => {
   const dispatch: State['dispatch'] = {
     addMembersWizardPushMembers: members => {
       const f = async () => {
@@ -1559,7 +1558,7 @@ export const _useState = Z.createZustand<State>((set, get) => {
 
           // Dismiss the create channel dialog.
           const visibleScreen = Router2Constants.getVisibleScreen()
-          if (visibleScreen && visibleScreen.name === 'chatCreateChannel') {
+          if (visibleScreen?.name === 'chatCreateChannel') {
             C.useRouterState.getState().dispatch.clearModals()
           }
           // Reload on team page
@@ -2703,7 +2702,7 @@ export const _useState = Z.createZustand<State>((set, get) => {
             teamWaitingKey(teamID),
             setMemberPublicityWaitingKey(teamID),
           ])
-          return
+          get().dispatch.getTeams(false)
         } catch (error) {
           set(s => {
             if (error instanceof RPCError) {
@@ -3013,7 +3012,6 @@ export const _useState = Z.createZustand<State>((set, get) => {
             return
           }
         }
-        C.useRouterState.getState().dispatch.switchTab(Tabs.teamsTab)
         C.useRouterState.getState().dispatch.navigateAppend({props: {initialTab, teamID}, selected: 'team'})
         if (addMembers) {
           C.useRouterState.getState().dispatch.navigateAppend({
@@ -3131,7 +3129,7 @@ export const _useState = Z.createZustand<State>((set, get) => {
       const f = async () => {
         try {
           await T.RPCGen.teamsUploadTeamAvatarRpcPromise(
-            {crop, filename, sendChatNotification, teamname},
+            {crop: C.fixCrop(crop), filename, sendChatNotification, teamname},
             ProfileConstants.uploadAvatarWaitingKey
           )
           C.useRouterState.getState().dispatch.navigateUp()

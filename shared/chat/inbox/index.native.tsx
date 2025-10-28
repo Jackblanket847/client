@@ -10,9 +10,11 @@ import TeamsDivider from './row/teams-divider'
 import UnreadShortcut from './unread-shortcut'
 import type * as TInbox from './index.d'
 import type * as T from '@/constants/types'
-import {type ViewToken, FlatList, Alert} from 'react-native'
+import {type ViewToken, Alert} from 'react-native'
+import {FlatList} from 'react-native-gesture-handler'
 // import {FlashList, type ListRenderItemInfo} from '@shopify/flash-list'
 import {makeRow} from './row'
+import {useOpenedRowState} from './row/opened-row-state'
 
 type RowItem = T.Chat.ChatInboxRowItem
 
@@ -59,19 +61,17 @@ const Inbox = React.memo(function Inbox(p: TInbox.Props) {
   const {unreadIndices, unreadTotal, rows, smallTeamsExpanded, isSearching, allowShowFloatingButton} = p
   const {neverLoaded, onNewChat, inboxNumSmallRows, setInboxNumSmallRows} = p
 
-  // used to close other rows
-  const swipeCloseRef = React.useRef<null | (() => void)>(null)
   // stash first offscreen index for callback
   const firstOffscreenIdxRef = React.useRef(-1)
   const lastVisibleIdxRef = React.useRef(-1)
   const listRef = React.useRef</*FlashList<RowItem> | */ FlatList<RowItem> | null>(null)
 
   const onScrollUnbox = C.useDebouncedCallback(
-    (data: {viewableItems: Array<ViewToken>; changed: Array<ViewToken>}) => {
+    (data: {viewableItems: Array<ViewToken<RowItem>>; changed: Array<ViewToken<RowItem>>}) => {
       const {viewableItems} = data
       const item = viewableItems[0]
       if (item && Object.hasOwn(item, 'index')) {
-        askForUnboxing(viewableItems.map(i => i.item as RowItem))
+        askForUnboxing(viewableItems.map(i => i.item))
       }
     },
     1000
@@ -190,7 +190,7 @@ const Inbox = React.memo(function Inbox(p: TInbox.Props) {
       } else if (row.type === 'teamBuilder') {
         element = <BuildTeam />
       } else {
-        element = makeRow(row, navKey, selectedConversationIDKey === row.conversationIDKey, swipeCloseRef)
+        element = makeRow(row, navKey, selectedConversationIDKey === row.conversationIDKey)
       }
 
       return element
@@ -261,10 +261,13 @@ const Inbox = React.memo(function Inbox(p: TInbox.Props) {
     return {index, length, offset}
   }, [])
 
-  React.useEffect(() => {
-    swipeCloseRef.current?.()
-    swipeCloseRef.current = null
-  }, [])
+  const setOpenRow = useOpenedRowState(s => s.dispatch.setOpenRow)
+
+  C.Router2.useSafeFocusEffect(
+    React.useCallback(() => {
+      setOpenRow(C.Chat.noConversationIDKey)
+    }, [setOpenRow])
+  )
 
   const rowLength = rows.length
   const lastUnreadIndicesRef = React.useRef(unreadIndices)
@@ -357,7 +360,7 @@ const Inbox = React.memo(function Inbox(p: TInbox.Props) {
             overScrollMode="never"
             overrideItemLayout={overrideItemLayout}
             ref={listRef}
-            removeClippedSubviews={true /*Kb.Styles.isAndroid*/}
+            removeClippedSubviews={Kb.Styles.isAndroid}
             renderItem={renderItem}
             windowSize={5 /* 21*/}
             getItemLayout={getItemLayout}
