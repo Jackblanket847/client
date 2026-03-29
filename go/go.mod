@@ -126,7 +126,7 @@ require (
 	github.com/anmitsu/go-shlex v0.0.0-20161002113705-648efa622239 // indirect
 	github.com/antchfx/htmlquery v1.2.3 // indirect
 	github.com/antchfx/xmlquery v1.3.4 // indirect
-	github.com/antchfx/xpath v1.1.10 // indirect
+	github.com/antchfx/xpath v1.3.6 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20180319081651-7d2e70ef918f // indirect
 	github.com/ashanbrown/forbidigo v1.6.0 // indirect
 	github.com/ashanbrown/makezero v1.2.0 // indirect
